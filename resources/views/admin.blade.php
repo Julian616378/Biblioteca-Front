@@ -2,9 +2,9 @@
 <html lang="es">
 <head>
     <title>Panel de Administrador</title>
-    <link rel="stylesheet" href="{{asset('CSS/admin.css')}}">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
 </head>
 <style>
     :root {
@@ -468,6 +468,37 @@
             width: 100%;
         }
     }
+    .renovacion-info {
+    margin: 10px 0;
+    padding: 8px;
+    border-radius: 4px;
+    background-color: #f5f5f5;
+}
+
+.info-text {
+    color: var(--info-color);
+}
+
+.success-text {
+    color: var(--success-color);
+    font-weight: bold;
+}
+
+.error-text {
+    color: var(--danger-color);
+}
+
+/* Estilo para botones deshabilitados */
+.btn-warning:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-warning:disabled:hover {
+    background-color: #cccccc;
+}
 </style>
 <body>
     <div class="container">
@@ -545,9 +576,90 @@
     </div>
 
     <script>
+
+          
+function esDiaRenovacion(fechaDevolucion) {
+    if (!fechaDevolucion) return false;
+    
+    const hoy = new Date();
+    const fechaDev = new Date(fechaDevolucion);
+    
+    // Diferencia en días
+    const diffTime = fechaDev - hoy;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays === 0; // Es el último día (día 3)
+}
+
+
+function calcularDiasRenovacion(fechaDevolucion) {
+    if (!fechaDevolucion) return '<p class="info-text">Fecha de devolución no definida</p>';
+    
+    const hoy = new Date();
+    const fechaDev = new Date(fechaDevolucion);
+    const diffTime = fechaDev - hoy;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays > 1) {
+        return `<p class="info-text">Días restantes: ${diffDays}</p>`;
+    } else if (diffDays === 1) {
+        return `<p class="info-text">Último día antes de renovación/multa</p>`;
+    } else if (diffDays === 0) {
+        return `<p class="success-text">¡Hoy es el día para renovar!</p>`;
+    } else {
+        return `<p class="error-text">Préstamo vencido. Multa aplicada.</p>`;
+    }
+}
+
+
+        // Variables globales
         const token = sessionStorage.getItem('token');
         let currentPrestamoId = null;
 
+        // Funciones auxiliares
+        function esUltimoDia(fechaDevolucion) {
+    if (!fechaDevolucion) return false;
+    
+    const hoy = new Date();
+    const fechaDev = new Date(fechaDevolucion);
+    
+    // Ajustar ambas fechas a medianoche para comparar solo día/mes/año
+    const hoyAjustado = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const fechaDevAjustada = new Date(fechaDev.getFullYear(), fechaDev.getMonth(), fechaDev.getDate());
+    
+    return hoyAjustado.getTime() === fechaDevAjustada.getTime();
+}
+
+        function calcularDiasRenovacion(fechaDevolucion) {
+            if (!fechaDevolucion) return '<p class="info-text">Fecha de devolución no definida</p>';
+            
+            const hoy = new Date();
+            const fechaDev = new Date(fechaDevolucion);
+            const diffTime = fechaDev - hoy;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            
+            if (diffDays > 1) {
+                return `<p class="info-text">Puedes renovar en ${diffDays} días</p>`;
+            } else if (diffDays === 1) {
+                return `<p class="info-text">Puedes renovar mañana</p>`;
+            } else if (diffDays === 0) {
+                return `<p class="success-text">¡Hoy es el último día para renovar!</p>`;
+            } else {
+                return `<p class="error-text">Fecha de devolución pasada</p>`;
+            }
+        }
+
+        function formatFecha(fechaString) {
+            if (!fechaString) return 'No definida';
+            const fecha = new Date(fechaString);
+            return fecha.toLocaleDateString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        }
+
+        // Funciones principales
         function mostrarSeccion(seccion) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
             
@@ -569,7 +681,6 @@
             document.querySelector(`.tab[onclick="cambiarTab('${tab}')"]`).classList.add('active');
             document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.add('active');
             
-            // Si estamos en la pestaña de multas, cargar específicamente esos datos
             if (tab === 'multas') {
                 cargarPrestamosConMultas();
             }
@@ -710,119 +821,159 @@
             });
         }
 
-        function cargarAprobados() {
-            const listaActivos = document.getElementById('listaAprobadosActivos');
-            const listaDevueltos = document.getElementById('listaAprobadosDevueltos');
-            const listaMultas = document.getElementById('listaAprobadosMultas');
+       function cargarAprobados() {
+    const listaActivos = document.getElementById('listaAprobadosActivos');
+    const listaDevueltos = document.getElementById('listaAprobadosDevueltos');
+    const listaMultas = document.getElementById('listaAprobadosMultas');
+    
+    listaActivos.innerHTML = '<div class="loading">Cargando préstamos activos...</div>';
+    listaDevueltos.innerHTML = '<div class="loading">Cargando historial de préstamos...</div>';
+    listaMultas.innerHTML = '<div class="loading">Cargando préstamos con multas...</div>';
+    
+    const refreshBtn = document.querySelector('#seccionAprobados button');
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = 'Cargando...';
+    
+    axios.get('http://localhost:8000/api/prestamos', {
+        headers: { Authorization: 'Bearer ' + token }
+    })
+    .then(res => {
+        let htmlActivos = '';
+        let htmlDevueltos = '';
+        let htmlMultas = '';
+        
+        const prestamos = res.data;
+        const activos = prestamos.filter(p => !p.devuelto);
+        const devueltos = prestamos.filter(p => p.devuelto);
+        const conMultas = prestamos.filter(p => p.multa > 0);
+
+        // Préstamos activos
+        if (activos.length === 0) {
+            htmlActivos = '<div class="loading">No hay préstamos activos</div>';
+        } else {
+            activos.forEach(p => {
+                const esUltimoDiaValido = esUltimoDia(p.fecha_devolucion);
+                htmlActivos += `
+    <div class="prestamo-card ${p.multa > 0 ? 'prestamo-con-multa' : ''}" id="prestamo-aprobado-${p.id}">
+        <div class="prestamo-header">
+            <h3>${p.libro.titulo}</h3>
+            <span class="estado ${p.devuelto ? 'devuelto' : 'activo'}">
+                ${p.devuelto ? 'DEVUELTO' : 'ACTIVO'}
+            </span>
+        </div>
+        
+        <div class="prestamo-info">
+            <div class="info-row">
+                <span class="info-label">Autor:</span>
+                <span class="info-value">${p.libro.autor}</span>
+            </div>
             
-            listaActivos.innerHTML = '<div class="loading">Cargando préstamos activos...</div>';
-            listaDevueltos.innerHTML = '<div class="loading">Cargando historial de préstamos...</div>';
-            listaMultas.innerHTML = '<div class="loading">Cargando préstamos con multas...</div>';
+            <div class="info-row">
+                <span class="info-label">Usuario:</span>
+                <span class="info-value">${p.user ? p.user.name : 'ID: '+p.user_id}</span>
+            </div>
             
-            const refreshBtn = document.querySelector('#seccionAprobados button');
-            refreshBtn.disabled = true;
-            refreshBtn.textContent = 'Cargando...';
+            <div class="info-row">
+                <span class="info-label">Fecha Préstamo:</span>
+                <span class="info-value">${formatFecha(p.fecha_prestamo)}</span>
+            </div>
             
-            axios.get('http://localhost:8000/api/prestamos', {
-                headers: { Authorization: 'Bearer ' + token }
-            })
-            .then(res => {
-                let htmlActivos = '';
-                let htmlDevueltos = '';
-                let htmlMultas = '';
-                
-                const prestamos = res.data;
-                const activos = prestamos.filter(p => !p.devuelto);
-                const devueltos = prestamos.filter(p => p.devuelto);
-                const conMultas = prestamos.filter(p => p.multa > 0);
-
-                // Préstamos activos
-                if (activos.length === 0) {
-                    htmlActivos = '<div class="loading">No hay préstamos activos</div>';
-                } else {
-                    activos.forEach(p => {
-                        const fechaDevolucion = p.fecha_devolucion ? p.fecha_devolucion.split(' ')[0] : '';
-                        
-                        htmlActivos += `
-                            <div class="prestamo-card ${p.multa > 0 ? 'prestamo-con-multa' : ''}" id="prestamo-aprobado-${p.id}">
-                                <p><strong>Libro:</strong> ${p.libro.titulo}</p>
-                                <p><strong>Autor:</strong> ${p.libro.autor}</p>
-                                <p><strong>Usuario:</strong> ${p.user ? p.user.name : 'ID: '+p.user_id}</p>
-                                <p><strong>Fecha Préstamo:</strong> ${p.fecha_prestamo}</p>
-                                <div class="date-picker">
-                                    <strong>Fecha Devolución:</strong>
-                                    <div class="date-display" onclick="abrirModalFecha(${p.id}, '${fechaDevolucion}')">
-                                        ${fechaDevolucion || 'Seleccionar fecha'}
-                                    </div>
-                                </div>
-                                ${p.multa > 0 ? `<p class="multa-text"><strong>Multa:</strong> $${p.multa}</p>` : ''}
-                                <div class="card-actions">
-                                    <button onclick="marcarDevuelto(${p.id}, this)" class="btn-success">Marcar como devuelto</button>
-                                </div>
-                            </div>
-                        `;
-                    });
-                }
-
-                // Préstamos devueltos
-                if (devueltos.length === 0) {
-                    htmlDevueltos = '<div class="loading">No hay historial de préstamos</div>';
-                } else {
-                    devueltos.forEach(p => {
-                        htmlDevueltos += `
-                            <div class="prestamo-card prestamo-devuelto">
-                                <p><strong>Libro:</strong> ${p.libro.titulo}</p>
-                                <p><strong>Autor:</strong> ${p.libro.autor}</p>
-                                <p><strong>Usuario:</strong> ${p.user ? p.user.name : 'ID: '+p.user_id}</p>
-                                <p><strong>Fecha Préstamo:</strong> ${p.fecha_prestamo}</p>
-                                <p><strong>Fecha Devolución:</strong> ${p.fecha_devolucion}</p>
-                                ${p.multa > 0 ? `<p><strong>Multa:</strong> $${p.multa}</p>` : ''}
-                                <p><strong>Estado:</strong> Devuelto</p>
-                            </div>
-                        `;
-                    });
-                }
-
-                // Préstamos con multas
-                if (conMultas.length === 0) {
-                    htmlMultas = '<div class="loading">No hay préstamos con multas pendientes</div>';
-                } else {
-                    conMultas.forEach(p => {
-                        htmlMultas += `
-                            <div class="prestamo-card prestamo-con-multa">
-                                <p><strong>Libro:</strong> ${p.libro.titulo}</p>
-                                <p><strong>Autor:</strong> ${p.libro.autor}</p>
-                                <p><strong>Usuario:</strong> ${p.user ? p.user.name : 'ID: '+p.user_id}</p>
-                                <p><strong>Fecha Préstamo:</strong> ${p.fecha_prestamo}</p>
-                                <p><strong>Fecha Devolución:</strong> ${p.fecha_devolucion || 'Pendiente'}</p>
-                                <p class="multa-text"><strong>Multa:</strong> $${p.multa}</p>
-                                <p><strong>Estado:</strong> ${p.devuelto ? 'Devuelto' : 'Activo'}</p>
-                                ${!p.devuelto ? `
-                                <div class="card-actions">
-                                    <button onclick="marcarDevuelto(${p.id}, this)" class="btn-success">Marcar como devuelto</button>
-                                </div>
-                                ` : ''}
-                            </div>
-                        `;
-                    });
-                }
-
-                listaActivos.innerHTML = htmlActivos;
-                listaDevueltos.innerHTML = htmlDevueltos;
-                listaMultas.innerHTML = htmlMultas;
-                refreshBtn.textContent = 'Actualizar lista';
-                refreshBtn.disabled = false;
-            })
-            .catch(err => {
-                console.error('Error al cargar préstamos:', err);
-                listaActivos.innerHTML = '<div class="error-message">Error al cargar préstamos activos</div>';
-                listaDevueltos.innerHTML = '<div class="error-message">Error al cargar historial de préstamos</div>';
-                listaMultas.innerHTML = '<div class="error-message">Error al cargar préstamos con multas</div>';
-                refreshBtn.textContent = 'Intentar nuevamente';
-                refreshBtn.disabled = false;
+            <div class="info-row">
+                <span class="info-label">Fecha Devolución:</span>
+                <span class="info-value ${p.devuelto ? '' : (new Date(p.fecha_devolucion) < new Date() ? 'text-danger' : '')}">
+                    ${formatFecha(p.fecha_devolucion)}
+                </span>
+            </div>
+            
+            ${p.multa > 0 ? `
+            <div class="info-row">
+                <span class="info-label">Multa:</span>
+                <span class="info-value text-danger">$${p.multa.toLocaleString()}</span>
+            </div>
+            ` : ''}
+        </div>
+        
+        <div class="renovacion-info">
+            ${calcularDiasRenovacion(p.fecha_devolucion)}
+        </div>
+        
+        <div class="card-actions">
+            <button onclick="renovarPrestamo(${p.id}, this, '${p.fecha_devolucion}')" 
+                    class="btn-warning" 
+                    ${!esDiaRenovacion(p.fecha_devolucion) ? 'disabled' : ''}>
+                Renovar Préstamo (3 días)
+            </button>
+            
+            ${!p.devuelto ? `
+            <button onclick="marcarDevuelto(${p.id}, this)" class="btn-success">
+                Marcar como devuelto
+            </button>
+            ` : ''}
+        </div>
+    </div>
+`;
             });
         }
 
+        // Resto del código permanece exactamente igual...
+        // Préstamos devueltos
+        if (devueltos.length === 0) {
+            htmlDevueltos = '<div class="loading">No hay historial de préstamos</div>';
+        } else {
+            devueltos.forEach(p => {
+                htmlDevueltos += `
+                    <div class="prestamo-card prestamo-devuelto">
+                        <p><strong>Libro:</strong> ${p.libro.titulo}</p>
+                        <p><strong>Autor:</strong> ${p.libro.autor}</p>
+                        <p><strong>Usuario:</strong> ${p.user ? p.user.name : 'ID: '+p.user_id}</p>
+                        <p><strong>Fecha Préstamo:</strong> ${p.fecha_prestamo}</p>
+                        <p><strong>Fecha Devolución:</strong> ${p.fecha_devolucion}</p>
+                        ${p.multa > 0 ? `<p><strong>Multa:</strong> $${p.multa}</p>` : ''}
+                        <p><strong>Estado:</strong> Devuelto</p>
+                    </div>
+                `;
+            });
+        }
+
+        // Préstamos con multas
+        if (conMultas.length === 0) {
+            htmlMultas = '<div class="loading">No hay préstamos con multas pendientes</div>';
+        } else {
+            conMultas.forEach(p => {
+                htmlMultas += `
+                    <div class="prestamo-card prestamo-con-multa">
+                        <p><strong>Libro:</strong> ${p.libro.titulo}</p>
+                        <p><strong>Autor:</strong> ${p.libro.autor}</p>
+                        <p><strong>Usuario:</strong> ${p.user ? p.user.name : 'ID: '+p.user_id}</p>
+                        <p><strong>Fecha Préstamo:</strong> ${p.fecha_prestamo}</p>
+                        <p><strong>Fecha Devolución:</strong> ${p.fecha_devolucion || 'Pendiente'}</p>
+                        <p class="multa-text"><strong>Multa:</strong> $${p.multa}</p>
+                        <p><strong>Estado:</strong> ${p.devuelto ? 'Devuelto' : 'Activo'}</p>
+                        ${!p.devuelto ? `
+                        <div class="card-actions">
+                            <button onclick="marcarDevuelto(${p.id}, this)" class="btn-success">Marcar como devuelto</button>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+        }
+
+        listaActivos.innerHTML = htmlActivos;
+        listaDevueltos.innerHTML = htmlDevueltos;
+        listaMultas.innerHTML = htmlMultas;
+        refreshBtn.textContent = 'Actualizar lista';
+        refreshBtn.disabled = false;
+    })
+    .catch(err => {
+        console.error('Error al cargar préstamos:', err);
+        listaActivos.innerHTML = '<div class="error-message">Error al cargar préstamos activos</div>';
+        listaDevueltos.innerHTML = '<div class="error-message">Error al cargar historial de préstamos</div>';
+        listaMultas.innerHTML = '<div class="error-message">Error al cargar préstamos con multas</div>';
+        refreshBtn.textContent = 'Intentar nuevamente';
+        refreshBtn.disabled = false;
+    });
+}
         function cargarPrestamosConMultas() {
             const listaMultas = document.getElementById('listaAprobadosMultas');
             listaMultas.innerHTML = '<div class="loading">Cargando préstamos con multas...</div>';
@@ -937,9 +1088,115 @@
             sessionStorage.clear();
             window.location.href = "{{ URL('/') }}";
         }
+        async function renovarPrestamo(prestamoId, btn, fechaDevolucion) {
+    try {
+        btn.disabled = true;
+        btn.textContent = 'Procesando...';
+        
+        if (!esDiaRenovacion(fechaDevolucion)) {
+            const fechaFormateada = formatFecha(fechaDevolucion);
+            throw new Error(`Solo puedes renovar el día ${fechaFormateada}`);
+        }
 
-        // Mostrar la sección de creación por defecto
+        if (!confirm('¿Renovar este préstamo por 3 días adicionales?')) {
+            btn.disabled = false;
+            btn.textContent = 'Renovar Préstamo';
+            return;
+        }
+
+        const response = await axios.put(
+            `http://localhost:8000/api/prestamos/${prestamoId}/renovar`, 
+            {},
+            {
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        if (response.data.success) {
+            mostrarNotificacion(
+                'success', 
+                'Préstamo renovado', 
+                `Nueva fecha: ${formatFecha(response.data.nueva_fecha_devolucion)}`
+            );
+            cargarAprobados();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        mostrarNotificacion(
+            'error', 
+            'Error en renovación', 
+            error.response?.data?.message || error.message
+        );
+    } finally {
+        btn.textContent = 'Renovar Préstamo';
+        btn.disabled = !esDiaRenovacion(fechaDevolucion);
+    }
+}
+// Función auxiliar para calcular días restantes
+function calcularDiasRestantes(fechaDevolucion) {
+    const hoy = new Date();
+    const fechaDev = new Date(fechaDevolucion);
+    const diffTime = fechaDev - hoy;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays > 0) {
+        return `Faltan ${diffDays} días para la fecha de renovación.`;
+    } else {
+        return 'La fecha de devolución ya pasó.';
+    }
+}
+function mostrarNotificacion(tipo, titulo, mensaje) {
+    // Crea el elemento de notificación
+    const notificacion = document.createElement('div');
+    notificacion.className = `notificacion ${tipo}`;
+    notificacion.innerHTML = `
+        <strong>${titulo}</strong>
+        <p>${mensaje}</p>
+    `;
+    
+    // Agrega al cuerpo del documento
+    document.body.appendChild(notificacion);
+    
+    // Elimina después de 5 segundos
+    setTimeout(() => {
+        notificacion.remove();
+    }, 5000);
+}
+
+// Y el CSS correspondiente
+const style = document.createElement('style');
+style.textContent = `
+.notificacion {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px;
+    border-radius: 5px;
+    color: white;
+    max-width: 300px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    z-index: 1000;
+    animation: fadeIn 0.3s;
+}
+.notificacion.success {
+    background-color: #28a745;
+}
+.notificacion.error {
+    background-color: #dc3545;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+`;
+document.head.appendChild(style);
+
+        // Inicialización
         mostrarSeccion('crear');
+  
     </script>
 </body>
 </html>
