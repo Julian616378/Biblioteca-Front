@@ -571,7 +571,7 @@ function actualizarResumen() {
     .then(res => {
         const cantidadMultas = res.data.cantidad_multas || 0;
         const cantidadPrestamos = res.data.cantidad_prestamos || 0;
-        const valorTotalMultas = cantidadMultas * 3000;
+        const valorTotalMultas = cantidadMultas * 6000;
 
         document.getElementById('cantidadMultas').innerText = cantidadMultas;
         document.getElementById('valorMultas').innerText = `$${valorTotalMultas}`;
